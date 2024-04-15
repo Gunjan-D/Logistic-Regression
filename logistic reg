@@ -1,57 +1,40 @@
-library(glmnet)
-library(caret)
-library(ggplot2)
-library(lattice)
+logisticRegression <- function(x, y, alpha = 0.01, epochs = 1000, threshold = 0.5, intercept = TRUE, epsilon = 1e-8) {
+    colNames = colnames(x)
+    # print(colNames)
+    # Add a column of ones to the predictor matrix for the intercept term
 
-logistic_regression <- function(y, X, top_k = NULL, B = NULL, models = NULL) {
-  # Fit logistic regression model
-  logistic_model <- glm(y ~ ., data = data.frame(y = y, X), family = "binomial")
-  print("Logistic regression model fitted.")
-  
-  # Pre-screening
-  if (!is.null(top_k)) {
-    # Use caret's varImp function to calculate variable importance scores
-    var_imp <- varImp(logistic_model, type = 1)
-    
-    # Select top k variables
-    X_top_k <- X[, order(var_imp$importance, decreasing = TRUE)[1:top_k]]
-    print(paste("Top", top_k, "variables selected for logistic regression."))
-    
-    # Fit logistic regression model with top k variables
-    logistic_model_top_k <- glm(y ~ ., data = data.frame(y = y, X_top_k), family = "binomial")
-    print("Logistic regression model with top k variables fitted.")
-    
-    # Return logistic_model_top_k
-    return(logistic_model_top_k)
-  }
-  
-  # Ensemble learning
-  if (!is.null(models)) {
-    # Define default models if not provided
-    if (is.null(models)) {
-      models <- c("logistic", "ridge", "lasso", "elastic_net", "rf", "svm", "xgb")
+    if(intercept){
+        x <- cbind(1, x)
     }
-    
-    # Fit the specified models
-    models_fitted <- lapply(models, function(model) {
-      if (model == "logistic") {
-        return(logistic_model)
-      } else if (model %in% c("ridge", "lasso", "elastic_net")) {
-        return(glmnet(X, y, family = "binomial", alpha = ifelse(model == "ridge", 0, ifelse(model == "lasso", 1, 0.5))))
-      } else if (model == "rf") {
-        return(randomForest(y ~ ., data = data.frame(y = y, X), ntree = 500))
-      } else if (model == "svm") {
-        return(svm(y ~ ., data = data.frame(y = y, X), kernel = "radial", cost = 1, scale = TRUE))
-      } else if (model == "xgb") {
-        return(xgboost(data = as.matrix(X), label = y, objective = "binary:logistic", nrounds = 500))
-      }
-    })
-    
-    # Calculate the average predicted probabilities for the ensemble models
-    preds_ensemble <- colMeans(sapply(models_fitted, function(model) predict(model, newdata = X, type = "response")))[2]
-    print("Ensemble model predictions calculated.")
-    
-    # Return preds_ensemble
-    return(preds_ensemble)
-  }
+
+    # Initialize weights with zeros
+    weights <- numeric(ncol(x))
+
+    # Gradient descent
+    for (epoch in 1:epochs) {
+        # Calculate predicted probabilities
+        logits <- x %*% weights
+        probabilities <- sigmoid(logits)
+
+        # Calculate error
+        error <- probabilities - y
+
+        # Update weights
+        gradient <- t(x) %*% error
+        weights <- weights - alpha * gradient
+
+        # Check convergence
+        if (max(abs(gradient)) < epsilon) {
+            break
+        }
+    }
+
+    # Make predictions
+    logits <- x %*% weights
+    probabilities <- 1 / (1 + exp(-logits))
+    predictions <- ifelse(probabilities > threshold, 1, 0)
+    result = as.data.frame(weights)
+    row.names(result) = c("intercept", colNames)
+    return(result)
+    # return(list(weights = weights, predictions = predictions, probabilities = probabilities))
 }
