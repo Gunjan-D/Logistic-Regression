@@ -1,0 +1,38 @@
+# Function to perform bagging for linear regression
+bagged_linear_regression <- function(x, y, R = 100) {
+    # Initialize vector to store predictions
+    predictions <- numeric(length(y))
+
+    # Initialize matrix to store variable importance scores
+    variable_importance <- numeric(length(x))
+
+    # Perform bagging
+    for (i in 1:R) {
+        # Sample indices with replacement
+        indices <- sample.int(n = length(y), replace = TRUE)
+
+        # Fit linear regression model to the sampled data
+        model <- lm(y[indices] ~ x[indices])
+
+        # Predict on the original data
+        predictions <- predictions + predict(model, newdata = data.frame(x))
+
+        # Update variable importance scores
+        variable_importance <- variable_importance + as.numeric(names(coef(model)) %in% names(x))
+    }
+
+    # Average predictions
+    predictions <- predictions / R
+
+    # Compute variable importance scores
+    variable_importance <- variable_importance / R
+
+    # Return predictions and variable importance scores
+    return(list(predictions = predictions, variable_importance = variable_importance))
+}
+
+# Example usage:
+# Assuming x and y are your predictor and response variables, respectively
+bagged_result <- bagged_linear_regression(x, y, R = 100)
+predictions <- bagged_result$predictions
+variable_importance <- bagged_result$variable_importance
